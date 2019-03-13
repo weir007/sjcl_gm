@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<script language="javascript" src="../core.js"></script>
+<script language="javascript" src="./sm3.js"></script>
+<script language="javascript">
+
+function dump(a)
+{
+    console.log("Length : "+a.length);
+	for (var i=0; i<a.length; i++)
+	    console.log(a[i].toString(16));
+}
+
+function dump(tag, a)
+{
+    var list = [];
+	for (var i=0; i<a.length; i++)
+	    list += ((a[i]+0x100000000) % 0x100000000).toString(16)+' ';
+	console.log(tag+'('+a.length+'):'+list);
+}
+
+var msg = '12345678123456781234567812345678123456781234567812345678123456789';
+//64B => 512 x 1 bit => 1 block + 1 padding block
+// update(b1:32B) xor final(b2:32B)
+
+
+//1234567812345678123456781234567812345678123456781234567812345678';
+//var arr = sjcl.codec.utf8String.toBits(msg);
+//alert('arr[0] = '+arr[0]);
+//console.log('bit : '+arr[0].toString(16));
+//dump(arr);
+
+console.log('sm3_1('+msg+'):'+sm3(msg));
+
+//hash = sm3(msg);
+//console.log('correct:'+hash);
+
+hash = sjcl.hash.sm3.hash(msg);
+//hash = new sjcl.hash.sha256(msg);
+
+dump('sm3_2('+msg+')', hash);
+
+//hash = sjcl.hash.sha256.hash(msg);
+//hash = new sjcl.hash.sha256(msg);
+
+//console.log('arr:'+hash[0].toString(16)+' '+hash[1].toString(16)+' '+hash[2].toString(16)+' '+hash[3].toString(16)+' '+hash[4].toString(16)+' '+hash[5].toString(16)+' '+hash[6].toString(16)+' '+hash[7].toString(16));
+
+//hash = sjcl.hash.sha256.hash(msg);
+
+//console.log('str:'+hash[0].toString(16)+' '+hash[1].toString(16)+' '+hash[2].toString(16)+' '+hash[3].toString(16)+' '+hash[4].toString(16)+' '+hash[5].toString(16)+' '+hash[6].toString(16)+' '+hash[7].toString(16));
+/*
+
+
+hash = new sjcl.hash.sha256.hash(sjcl.codec.utf8String.toBits(msg));
+console.log('bitArray:'+hash[0].toString(16)+' '+hash[1].toString(16)+' '+hash[2].toString(16)+' '+hash[3].toString(16)+' '+hash[4].toString(16)+' '+hash[5].toString(16)+' '+hash[6].toString(16)+' '+hash[7].toString(16));
+/*
+var pt = [0x01234567, 0x89abcdef, 0xfedcba98, 0x76543210];
+var key = [0x01234567, 0x89abcdef, 0xfedcba98, 0x76543210];
+var extkey = sm4_getkey(key);
+
+for (var i=0; i<32; i++)
+    document.write('RK['+i+'] = '+extkey[i]+'\n');
+//alert(extkey[28].toString(16)+' '+extkey[29].toString(16)+' '+extkey[30].toString(16)+' '+extkey[31].toString(16))
+
+//aes = new sjcl.cipher.aes(key);
+//ct = aes.encrypt(key, pt);
+
+sm4 = new sjcl.cipher.sm4(key);
+ct = sm4.encrypt(pt, key);
+
+console.log(ct[0].toString(16));
+console.log(ct[1].toString(16));
+console.log(ct[2].toString(16));
+console.log(ct[3].toString(16));
+alert(ct.length);
+alert(key.length);
+pt = [];
+pt = sm4.decrypt(ct, key);
+console.log(pt[0].toString(16));
+console.log((pt[1]+0x100000000).toString(16));
+console.log((pt[2]+0x100000000).toString(16));
+console.log(pt[3].toString(16));
+*/
+
+</script>
+</head>
+<body>
+
+</body>
+</html>
