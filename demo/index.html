@@ -55,17 +55,13 @@ dump('sm3_2('+msg+')', hash);
 
 hash = new sjcl.hash.sha256.hash(sjcl.codec.utf8String.toBits(msg));
 console.log('bitArray:'+hash[0].toString(16)+' '+hash[1].toString(16)+' '+hash[2].toString(16)+' '+hash[3].toString(16)+' '+hash[4].toString(16)+' '+hash[5].toString(16)+' '+hash[6].toString(16)+' '+hash[7].toString(16));
-/*
+*/
 var pt = [0x01234567, 0x89abcdef, 0xfedcba98, 0x76543210];
 var key = [0x01234567, 0x89abcdef, 0xfedcba98, 0x76543210];
 var extkey = sm4_getkey(key);
 
-for (var i=0; i<32; i++)
-    document.write('RK['+i+'] = '+extkey[i]+'\n');
-//alert(extkey[28].toString(16)+' '+extkey[29].toString(16)+' '+extkey[30].toString(16)+' '+extkey[31].toString(16))
-
-//aes = new sjcl.cipher.aes(key);
-//ct = aes.encrypt(key, pt);
+aes = new sjcl.cipher.aes(key);
+ct = aes.encrypt(key, pt);
 
 sm4 = new sjcl.cipher.sm4(key);
 ct = sm4.encrypt(pt, key);
@@ -74,15 +70,13 @@ console.log(ct[0].toString(16));
 console.log(ct[1].toString(16));
 console.log(ct[2].toString(16));
 console.log(ct[3].toString(16));
-alert(ct.length);
-alert(key.length);
+
 pt = [];
 pt = sm4.decrypt(ct, key);
 console.log(pt[0].toString(16));
 console.log((pt[1]+0x100000000).toString(16));
 console.log((pt[2]+0x100000000).toString(16));
 console.log(pt[3].toString(16));
-*/
 
 </script>
 </head>

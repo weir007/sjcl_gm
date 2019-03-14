@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+<!--script language="javascript" src="lodash.js"></script>
+<script language="javascript" src="platform.js"></script>
+<script language="javascript" src="benchmark.js"></script-->
+<script language="javascript" src="../core.js"></script>
+<script language="javascript">
+
+Object.prototype.clone = function() {
+  var copy = (this instanceof Array) ? [] : {};
+  for (attr in this) {
+    if (!this.hasOwnProperty(attr)) continue;
+    copy[attr] = (typeof this[attr] == "object") ? this[attr].clone() : this[attr];
+  } 
+  return copy;
+};
+
+/*********************SM2*********************/
+var msg = "Message for signing", commonKey = [], sig = [];
+
+var ecc_sign = {
+  ecdsa : {
+    /* using curve NIST-c256 */
+    genKeys : function (rounds) {
+	  var key, t = new Date().getTime();
+	  for (var i=0; i<rounds; i++) {
+	    key = sjcl.ecc.ecdsa.generateKeys();
+	  }
+	  t = new Date().getTime() - t;
+	  console.log("ecdsa : generated "+Math.floor(1000*rounds/t)+" pair of keys per second");
+	},
+    sign : function (rounds) {
+      if (!commonKey['ecdsa'])
+	    commonKey['ecdsa'] = sjcl.ecc.ecdsa.generateKeys();
+	  var t = new Date().getTime(), hash;
+	  for (var i=0; i<rounds; i++) {
+	    hash = sjcl.hash.sha256.hash(msg);
+	    sig['ecdsa'] = commonKey['ecdsa'].sec.sign(hash);
+	  }
+	  t = new Date().getTime() - t;
+	  console.log("ecdsa : signing "+Math.floor(1000*rounds/t)+" times per second");
+    },
+    verify : function (rounds) {
+	  if (!(commonKey['ecdsa'] && sig['ecdsa'])) {
+	    commonKey['ecdsa'] = sjcl.ecc.ecdsa.generateKeys();
+		sig['ecdsa'] = commonKey['ecdsa'].sec.sign(sjcl.hash.sha256.hash(msg));
+	  }
+	  var t = new Date().getTime();
+	  for (var i=0; i<rounds; i++) {
+	    if (!commonKey['ecdsa'].pub.verify(sjcl.hash.sha256.hash(msg), sig['ecdsa'])) {
+		  throw new Error("Verify failed in round "+i+".");
+		}
+	  }
+	  t = new Date().getTime() - t;
+	  console.log("ecdsa : verifying "+Math.floor(1000*rounds/t)+" times per second");
+	},
+	run : function (rounds) {
+	  this.genKeys(rounds);
+	  this.sign(rounds);
+	  this.verify(rounds);
+	}
+  },
+  sm2 : {
+    /* using curve NIST-c256 */
+    genKeys : function (rounds) {
+	  var key, t = new Date().getTime();
+	  for (var i=0; i<rounds; i++) {
+	    key = sjcl.ecc.sm2.generateKeys();
+	  }
+	  t = new Date().getTime() - t;
+	  console.log("sm2 : generated "+Math.floor(1000*rounds/t)+" pair of keys per second");
+	},
+    sign : function (rounds) {
+      if (!commonKey['sm2'])
+	    commonKey['sm2'] = sjcl.ecc.sm2.generateKeys();
+	  var t = new Date().getTime(), hash;
+	  for (var i=0; i<rounds; i++) {
+	    sig['sm2'] = commonKey['sm2'].sec.sign(msg);
+	  }
+	  t = new Date().getTime() - t;
+	  console.log("sm2 : signing "+Math.floor(1000*rounds/t)+" times per second");
+    },
+    verify : function (rounds) {
+	  if (!(commonKey['sm2'] && sig['sm2'])) {
+	    commonKey['sm2'] = sjcl.ecc.sm2.generateKeys();
+		sig['sm2'] = commonKey['sm2'].sec.sign(msg);
+	  }
+	  var t = new Date().getTime();
+	  for (var i=0; i<rounds; i++) {
+	    if (!commonKey['sm2'].pub.verify(msg, sig['sm2'])) {
+		  throw new Error("Verify failed in round "+i+".");
+		}
+	  }
+	  t = new Date().getTime() - t;
+	  console.log("sm2 : verifying "+Math.floor(1000*rounds/t)+" times per second");
+	},
+	run : function (rounds) {
+	  this.genKeys(rounds);
+	  this.sign(rounds);
+	  this.verify(rounds);
+	}
+  },
+  run : function (rounds = 10000) {
+    this.ecdsa.run(rounds);
+    this.sm2.run(rounds);
+  }
+}
+
+/*********************SM3*********************/
+var msg = "1234567812345678123456781234567812345678123456781234567812345678";
+var hash = {
+  sha256 : function (rounds) {
+    var sha256 = sjcl.hash.sha256, ct = sjcl.codec.bytes.toBits(msg), t;
+	t = new Date().getTime();
+	for (var i=0; i<rounds; i++) {
+	  ct = sha256.hash(ct);
+	}
+	t = new Date().getTime() - t;
+	console.log("sha256 : "+Math.floor(sha256.prototype.blockSize*rounds/t)+" b/ms");
+  },
+  sm3 : function (rounds) {
+    var sm3 = sjcl.hash.sm3, ct = sjcl.codec.bytes.toBits(msg), t;
+	t = new Date().getTime();
+	for (var i=0; i<rounds; i++) {
+	  ct = sm3.hash(ct);
+	}
+	t = new Date().getTime() - t;
+	console.log("sm3 : "+Math.floor(sm3.prototype.blockSize*rounds/t)+" b/ms");
+  },
+  run : function(rounds = 10000) {
+    this.sha256(rounds);
+	this.sm3(rounds);
+  }
+}
+
+/*********************SM4*********************/
+var pt = sjcl.codec.bytes.toBits([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]);
+var key = sjcl.codec.bytes.toBits([15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0]);
+
+var enc = {
+  aes : function(rounds) {
+    var aes_enc = new sjcl.cipher.aes(key.clone());
+    var t, ct = pt.clone();
+    t = new Date().getTime();
+	for (var i=0; i<rounds; i++) {
+	  ct = aes_enc.encrypt(ct);
+	}
+	t = new Date().getTime() - t;
+	console.log("aes encryption : "+Math.floor(128*rounds/t)+" b/ms");
+	t = new Date().getTime();
+	for (var i=0; i<rounds; i++) {
+	  ct = aes_enc.decrypt(ct);
+	}
+	t = new Date().getTime() - t;
+	console.log("aes decryption : "+Math.floor(128*rounds/t)+" b/ms");
+  },
+  sm4 : function(rounds) {
+    var sm4_enc = new sjcl.cipher.sm4(key.clone());
+    var t, ct = pt.clone();
+    t = new Date().getTime();
+	for (var i=0; i<rounds; i++) {
+	  ct = sm4_enc.encrypt(ct);
+	}
+	t = new Date().getTime() - t;
+	console.log("sm4 encryption : "+Math.floor(128*rounds/t)+" b/ms");
+    t = new Date().getTime();
+	for (var i=0; i<rounds; i++) {
+	  ct = sm4_enc.decrypt(ct);
+	}
+	t = new Date().getTime() - t;
+	console.log("sm4 decryption : "+Math.floor(128*rounds/t)+" b/ms");
+  },
+  run : function(rounds = 10000) {
+    this.aes(rounds);
+	this.sm4(rounds);
+  }
+}
+
+
+ecc_sign.run(100);
+//hash.run();
+//enc.run();
+
+</script>
+</head>
+<body>
+
+</body>
+</html>

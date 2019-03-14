@@ -1,0 +1,63 @@
+<script language="javascript" src="../core.js"></script>
+<script>
+
+/* dump a bitArray */
+function dump (a, base=16){
+  var str = '';
+  for (var i=0; i<a.length; i++)
+    str = str.concat((a[i]<0 ? a[i]+0x100000000 : a[i]).toString(16)+' ');
+  console.log(str);
+}
+
+
+var key = sjcl.ecc.sm2.generateKeys();
+
+console.log("pk: "+key.pub.serialize().point);
+console.log("sk: "+key.sec.serialize().exponent);
+
+/*
+function KDF(za, klen, hash=sjcl.hash.sm3.hash, v=256)
+{
+  var bytes = sjcl.codec.bytes,
+      ct = 1, 
+      blocks = Math.floor((klen+v-1)/v), 
+  	ha = [];
+  
+  if (klen >= 0xffffffff*v)
+  {
+  	throw exception("message is too long");
+  }
+  
+  for (var i=0; i<blocks; i++)
+  {
+  	ha = ha.concat(hash(sjcl.bitArray.concat(za, [ct++ & 0xffffffff])));
+  }
+  return sjcl.bitArray.clamp(ha, klen);
+}
+
+var za = sjcl.codec.hex.toBits( "57e7b63623fae5f08cda468e872a20afa03ded41bf1403770e040dc83af31a67991f2b01ebf9efd8881f0a0493000603");
+
+var t = KDF(za, 152);
+console.log("t = "+sjcl.codec.hex.fromBits(t));
+
+
+var curve = sjcl.ecc.curves["sm2"];
+
+var key = {
+  pub: new sjcl.ecc['sm2'].publicKey(curve, new sjcl.ecc.point(curve, new sjcl.bn("C0FAEA5EED918A1F60B63E61F3CEBCD60B64799E32F265C747D45978A1EAE4A4"), new sjcl.bn("9003950ED67DB2A82B92DC4E98235F841767E3B3B0DA2C3552DE47234DCEF04D"))),
+  sec: new sjcl.ecc['sm2'].secretKey(curve, new sjcl.bn("89B6F3E3000590059FAB428BC6A090126CB86C6E2A07467D47E37D3BA3155F74"))
+}
+*/
+var sig = key.sec.sign("1234");
+dump(sig);
+var v = key.pub.verify("1234", sig);
+console.log("Signature verify : "+v);
+
+var ct = key.pub.encrypt("1234");
+console.log("Ciphertext : ");
+dump(ct);
+var pt = key.sec.decrypt(ct);
+console.log("Plaintext : ");
+dump(pt);
+
+</script>

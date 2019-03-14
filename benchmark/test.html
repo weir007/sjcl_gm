@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script language="javascript" src="lodash.js"></script>
+<script language="javascript" src="platform.js"></script>
+<script language="javascript" src="benchmark.js"></script>
+<script language="javascript" src="../core.js"></script>
+<script language="javascript">
+
+/*
+var suite = new Benchmark.Suite;
+// add tests
+suite.add('RegExp#test', function() {
+  /o/.test('Hello World!');
+})
+.add('String#indexOf', function() {
+  'Hello World!'.indexOf('o') > -1;
+})
+.add('String#match', function() {
+  !!'Hello World!'.match(/o/);
+})
+// add listeners
+.on('cycle', function(event) {
+  console.log(String(event.target));
+})
+.on('complete', function() {
+  console.log('Fastest is ' + this.filter('fastest').map('name'));
+})
+// run async
+.run({ 'async': true });
+*/
+
+Object.prototype.clone = function() {
+  var copy = (this instanceof Array) ? [] : {};
+  for (attr in this) {
+    if (!this.hasOwnProperty(attr)) continue;
+    copy[attr] = (typeof this[attr] == "object") ? this[attr].clone() : this[attr];
+  } 
+  return copy;
+};
+
+/*********************SM2*********************/
+var ecc_suite = new Benchmark.Suite;
+
+/*********************SM3*********************/
+var hash_suite = new Benchmark.Suite;
+
+
+/*********************SM4*********************/
+var symenc_suite = new Benchmark.Suite;
+var pt = sjcl.codec.bytes.toBits([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]);
+var key = sjcl.codec.bytes.toBits([15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0]);
+var aes_enc = new sjcl.cipher.aes(key);
+var sm4_enc = new sjcl.cipher.sm4(key);
+
+var enc = {
+  //var rounds = 10000;
+  aes : function(){
+    return aes_enc.encrypt(key.clone(), pt.clone());
+  },
+  sm4 : function(){
+    return sm4_enc.encrypt(key.clone(), pt.clone());
+  }
+}
+
+symenc_suite.add('aes', enc.aes).add('sm4', enc.sm4)
+.on('cycle', function(event) {
+  console.log(String(event.target));
+})
+.on("complete", function() {
+  console.log('Fastest is ' + this.filter('fastest').map('name'));
+})
+.run({ 'async': true });
+
+</script>
+</head>
+<body>
+
+</body>
+</html>

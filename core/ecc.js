@@ -479,17 +479,21 @@ sjcl.ecc.basicKey.generateKeys = function(cn) {
 
 sjcl.ecc.basicKey.generateKeys = function(cn) {
   return function generateKeys(curve, paranoia, sec) {
-    if (typeof curve === "number") {
-      curve = sjcl.ecc.curves['c'+curve];
-      if (curve === undefined) {
-        throw new sjcl.exception.invalid("no such curve");
-      }
-    }
-	else
+    if (cn === 'sm2')
 	{
 	  curve = sjcl.ecc.curves[cn];
 	}
-    sec = sec || sjcl.bn.random(curve.r, paranoia);
+	else
+	{
+      curve |= 256;
+	  if (typeof curve === "number") {
+        curve = sjcl.ecc.curves['c'+curve];
+        if (curve === undefined) {
+          throw new sjcl.exception.invalid("no such curve");
+        }
+      }
+	}
+	sec = sec || sjcl.bn.random(curve.r, paranoia);
 
     var pub = curve.G.mult(sec);
     return { pub: new sjcl.ecc[cn].publicKey(curve, pub),
@@ -687,8 +691,14 @@ sjcl.ecc.sm2 = {
   * @param {int} paranoia Paranoia for generation (default 6)
   * @param {secretKey} sec secret Key to use. used to get the publicKey for ones secretKey
   */
-  generateKeys: sjcl.ecc.basicKey.generateKeys("sm2"),
-    /**
+  //generateKeys: sjcl.ecc.basicKey.generateKeys("sm2"),
+  generateKeys: function () {
+	var key = sjcl.ecc.basicKey.generateKeys("sm2")();
+	/* set pubkey, for signing */
+	Object.assign(key.sec, {'_pk':key.pub._point});
+	return key;
+  },
+  /**
    * ZA = H(ENTLA || IDA || a || b || xG || yG || xA || yA)
    * @param {ecc.curve} curve 
    * @param {xcoordinate} px of public key
@@ -697,24 +707,25 @@ sjcl.ecc.sm2 = {
    * @param {sjcl.hash.xxx.hash} hash hash function   
    */
   HM : function getMsgHash(curve, px, py, ida="1234567812345678", hash=sjcl.hash.sm3.hash) {
-	var bytes = sjcl.codec.bytes,
-	string = sjcl.codec.utf8String,
-	hex = sjcl.codec.hex;
+    var bytes = sjcl.codec.bytes,
+	  string = sjcl.codec.utf8String,
+	  hex = sjcl.codec.hex;
 	if (typeof ida === 'string')
 	  ida = bytes.fromBits(string.toBits(ida));
   
 	var x = bytes.fromBits(hex.toBits(px.toString(16))), y = bytes.fromBits(hex.toBits(py.toString(16))),
-    la = ida.length << 3, 
-	entla = [(la>>8) & 0xff, la & 0xff],
-	a = bytes.fromBits(hex.toBits(curve.a.toString(16))),
-	b = bytes.fromBits(hex.toBits(curve.b.toString(16))),
-	xg = bytes.fromBits(hex.toBits(curve.G.x.toString(16))),
-	yg = bytes.fromBits(hex.toBits(curve.G.y.toString(16))),
-	za = entla.concat(ida).concat(a).concat(b).concat(xg).concat(yg).concat(x).concat(y);
+        la = ida.length << 3, 
+	    entla = [(la>>8) & 0xff, la & 0xff],
+	    a = bytes.fromBits(hex.toBits(curve.a.toString(16))),
+	    b = bytes.fromBits(hex.toBits(curve.b.toString(16))),
+	    xg = bytes.fromBits(hex.toBits(curve.G.x.toString(16))),
+	    yg = bytes.fromBits(hex.toBits(curve.G.y.toString(16))),
+	    za = entla.concat(ida, a, b, xg, yg, x, y);
 	//dumpb(za, "ZA_Src");
 	//dumpb(bytes.fromBits(sjcl.hash.sm3.hash(bytes.toBits(za))), "ZA");
 	return bytes.fromBits(hash(bytes.toBits(za)));
-  },
+    /* return hash("1234567812345678"); */  
+},
   
   /**
    * @param {bitArray} za
@@ -834,6 +845,8 @@ sjcl.ecc.sm2.publicKey.prototype = {
 */
 sjcl.ecc.sm2.secretKey = function (curve, exponent) {
   sjcl.ecc.basicKey.secretKey.apply(this, arguments);
+  /* weir007: precompute (1+d)^-1 */
+  Object.assign(this, {'_ivda1':this._exponent.add(1).inverseMod(this._curve.r)});
 };
 
 /** specific functions for ecdsa secretKey. */
@@ -847,20 +860,22 @@ sjcl.ecc.sm2.secretKey.prototype = {
   sign: function(msg, ida, hash=sjcl.hash.sm3.hash) {
 	if (typeof msg === 'string')
 	  msg  = sjcl.codec.bytes.fromBits(sjcl.codec.utf8String.toBits(msg));
-	var pk = this._curve.G.mult(this._exponent);
-	var za = sjcl.ecc.sm2.HM(this._curve, pk.x, pk.y, ida, hash);
+	//var pk = this._curve.G.mult(this._exponent);
+	var za = sjcl.ecc.sm2.HM(this._curve, this._pk.x, this._pk.y, ida, hash);
     if (sjcl.bitArray.bitLength(za) > this._curveBitLength) {
       za = sjcl.bitArray.clamp(za, this._curveBitLength);
     }
     var e  = hash(sjcl.codec.bytes.toBits(za.concat(msg))),
 	    n  = this._curve.r, k, x, r, s, k, l = n.bitLength();
-    //dump(e, "e");
+		
 	do {
 	  k  = sjcl.bn.random(n.sub(1)).add(1);
 	  x  = this._curve.G.mult(k).x.mod(n);
 	  r  = sjcl.bn.fromBits(e).add(x).mod(n);
-	} while(r.equals(0) || k.add(r).equals(n));
-	s  = this._exponent.add(1).inverseMod(n).mul(k.add(r).mod(n)).sub(r).mod(n);
+	  k  = k.add(r).mod(n);
+	} while(r.equals(0) || k.equals(0));
+	//s  = this._exponent.add(1).inverseMod(n).mul(k.mod(n)).sub(r).mod(n);
+	s  = this._ivda1.mul(k).sub(r).mod(n);
 	if (s.equals(0)) return null;
     
 	return sjcl.bitArray.concat(r.toBits(l), s.toBits(l));
