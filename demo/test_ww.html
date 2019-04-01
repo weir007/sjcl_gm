@@ -1,0 +1,96 @@
+<script>
+/* 测试内容：
+ *  1. 用 Web Worker 调用函数而非另一个js文件
+ *  2. 如果第一步成功，尝试在子线程函数中访问主线程函数
+ */
+ /*
+ // Worker-helper.js
+self.onmessage = function(e) {
+    self.onmessage = null; // Clean-up
+    eval(e.data);
+};
+var worker = new DynWorker(); worker.inject("foo", function(){alert('I\'m worker')});
+*/
+
+RelyObj = function (v = 'relied') {
+  this.v = v;
+}
+
+RelyObj.prototype = {
+  toString : function() {
+    return this.v;
+  }
+}
+
+Obj = function constructor(robj, v = 'my value') {
+  this.robj = robj;
+  this.str = v;
+}
+
+Obj.prototype = {
+  toString : function() {
+    return this.str+' '+this.robj.toString();
+  },
+  //https://www.html5rocks.com/en/tutorials/workers/basics/
+  multi_thread : function() {
+      /*var foo = function foo(e) {
+	    //return 'Foo : '+obj.toString();
+	    postMessage("Foo ("+e[0].toString().length+")"+e[0].toString()+" "+e[1]);
+	  }*/
+	  
+	  var foo = function foo() {
+	    console.log("I'm in.");
+	    self.addEventListener('message', function(e){
+		  //console.log("params received : "+e.data);
+		  for (v in e.data)
+		    console.log(" "+e.data[v]);
+		  postMessage({'Out':'Obj'});
+		})
+	  }
+	
+	  //this.blob = new Blob(["onmessage = function(){postMessage('"+foo(this)+"')}"]);
+	  //alert(this)
+	  //alert(this.str)
+	  //this.blob = new Blob([foo+"\nonmessage = foo('"+this+"')"]);
+	this.blob = new Blob([foo+"\nfoo()"]);
+    this.blobURL = window.URL.createObjectURL(this.blob);
+    var worker = new Worker(this.blobURL);
+	worker.onmessage = function(e) {console.log(e.data)};
+	worker.postMessage({'a':'A', 'b':'B'});
+  }
+}
+
+var myObj = new Obj(new RelyObj(), 'hello world');
+myObj.multi_thread();
+//console.log(myObj.toString());
+
+/*
+var glbv = 'global';
+
+function pubFunc()
+{
+  return {'a':1,'b':2};
+}
+
+function sample(e)//called in window, not in worker
+{
+    postMessage(sample_dependency());
+}
+
+function sample_dependency()
+{
+    return pubFunc();
+}
+
+var blob = new Blob(["onmessage = " + sample + "\n"+ pubFunc + "\n" + sample_dependency]);
+var blobURL = window.URL.createObjectURL(blob);
+var worker = new Worker(blobURL);
+
+worker.onmessage = function(e)
+{
+    console.log(e.data);
+};
+
+worker.postMessage("");
+*/
+</script>

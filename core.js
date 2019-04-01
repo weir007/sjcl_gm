@@ -3733,6 +3733,11 @@ sjcl.ecc.point.prototype = {
     return new sjcl.ecc.pointJac(this.curve, this.x, this.y, new this.curve.field(1));
   },
 
+  multG: function(k) {
+	return this.toJac().multG(k).toAffine();
+	//return this.toJac().mult(k, this).toAffine();//close optimization
+  },
+  
   mult: function(k) {
     return this.toJac().mult(k, this).toAffine();
   },
@@ -3747,7 +3752,7 @@ sjcl.ecc.point.prototype = {
   mult2: function(k, k2, affine2) {
     return this.toJac().mult2(k, this, k2, affine2).toAffine();
   },
-
+  /* precompute window=4 */
   multiples: function() {
     var m, i, j;
     if (this._multiples === undefined) {
@@ -3878,6 +3883,25 @@ sjcl.ecc.pointJac.prototype = {
     return new sjcl.ecc.point(this.curve, this.x.mul(zi2).fullReduce(), this.y.mul(zi2.mul(zi)).fullReduce());
   },
 
+  /* window = 4 */
+  multG: function(k) {
+	if (typeof(k) === "number") {
+      k = [k];
+    } else if (k.limbs !== undefined) {
+      k = k.normalize().limbs;
+    }
+	while (k.length < this.curve.r.limbs.length) k.push(0);
+	var i, j, t, r = sjcl.bn.prototype.radix, out = new sjcl.ecc.point(this.curve).toJac();
+	for (i=(this.curve.r.bitLength()+3)>>2; i>0; i--) {
+	  t  = (k[Math.floor(i/r)] >> (i%r-1)) & 1;
+	  t += (k[Math.floor((i+64)/r)]  >> ((i+64)%r-2))  & 2;
+	  t += (k[Math.floor((i+128)/r)] >> ((i+128)%r-3)) & 4;
+	  t += (k[Math.floor((i+192)/r)] >> ((i+192)%r-4)) & 8;
+	  out = out.doubl().add(this.curve.mG[t]);
+    }
+	return out;
+  },
+  
   /**
    * Multiply this point by k and return the answer in Jacobian coordinates.
    * @param {bigInt} k The coefficient to multiply by.
@@ -3891,17 +3915,101 @@ sjcl.ecc.pointJac.prototype = {
       k = k.normalize().limbs;
     }
 
-    var i, j, out = new sjcl.ecc.point(this.curve).toJac(), multiples = affine.multiples();
+    var i, j, t, out = new sjcl.ecc.point(this.curve).toJac(), multiples = affine.multiples();
 
+	/*
+	//it's not constant-time for k not filled to fix length (this.curve.r.bitLength() -> this.curve.r.limbs.length)
     for (i=k.length-1; i>=0; i--) {
       for (j=sjcl.bn.prototype.radix-4; j>=0; j-=4) {
         out = out.doubl().doubl().doubl().doubl().add(multiples[k[i]>>j & 0xF]);
       }
+    } */
+	
+	/* Const-time scalar-mult */
+	for (i=this.curve.r.limbs.length-1; i>=0; i--) {
+	  t = i < k.length ? k[i] : 0;
+      for (j=sjcl.bn.prototype.radix-4; j>=0; j-=4) {
+        out = out.doubl().doubl().doubl().doubl().add(multiples[t>>j & 0xF]);
+      }
+    }
+	return out;
+  },  
+  /*
+  mult: function(k, affine, st=true) {
+    if (typeof(k) === "number") {
+      k = [k];
+    } else if (k.limbs !== undefined) {
+      k = k.normalize().limbs;
     }
 
+    var i, j, t, out = new sjcl.ecc.point(this.curve).toJac(), multiples = affine.multiples();
+
+	/* 
+	//it's not constant-time for k not filled to fix length (this.curve.r.bitLength() -> this.curve.r.limbs.length)
+    for (i=k.length-1; i>=0; i--) {
+      for (j=sjcl.bn.prototype.radix-4; j>=0; j-=4) {
+        out = out.doubl().doubl().doubl().doubl().add(multiples[k[i]>>j & 0xF]);
+      }
+    } * /
+	
+	/* Const-time scalar-mult * /
+	if(typeof Worker === "undefined" || typeof window === "undefined" || st) {
+      for (i=this.curve.r.limbs.length-1; i>=0; i--) {
+	    t = i < k.length ? k[i] : 0;
+        for (j=sjcl.bn.prototype.radix-4; j>=0; j-=4) {
+          out = out.doubl().doubl().doubl().doubl().add(multiples[t>>j & 0xF]);
+        }
+      }
+	}
+	else{
+	  //var mul_s = function (res, muls = multiples, w = Math.ceil(this.curve.r.length/x), k, s, e = s+w, r = sjcl.bn.prototype.radix) {
+	  var mul_s = function mul_s () {
+	    self.addEventListener('message', function(evt) {
+	  	/* receive params * /
+	  	var k = evt.data['k'],
+      		muls = evt.data['muls'],
+	  		res = evt.data['res'],
+	  		s = evt.data['s'],
+	  		e = evt.data['e'],
+			r = evt.data['r'],
+	  	    i, j, t;
+	       for (i=s; i<e; i++) {
+	         t = typeof k[i] === 'undefined' ? 0 : k[i];
+	         for (j=r; j>=0; j-=4) {
+	       	  res = res.doubl().doubl().doubl().doubl().add(muls[t>>j & 0xF]);
+	         }
+	       }
+           postMessage(res);
+	    })
+      };
+	  
+	  var x = 2, scalar = new sjcl.bn(2), res = [out], blob, blobURL, worker = [], w = Math.ceil(this.curve.r.limbs.length / x);
+	  
+	  for (i=0; i<x; i++) {
+		if (i>0) {
+		  scalar = scalar.power(i*w*sjcl.bn.prototype.radix);
+		  res[i] = this.mult(scalar, affine, true);
+	  	}
+		blob = new Blob([mul_s+"\nmul_s()"]);
+        blobURL = window.URL.createObjectURL(blob);
+        worker[i] = new Worker(blobURL);
+	    worker[i].onmessage = function(e) {
+		  //console.log('th_'+i+' : '+e.data);
+		  out = out.add(e.data); 
+		};
+		//var postMessageTemp = window.postMessage;
+        //window.postMessage = function(message, targetOrigin, transfer)
+        //{
+          //postMessageTemp(JSON.parse(JSON.stringify(message)), targetOrigin, transfer)
+        //};
+	    //worker[i].postMessage({'res':res[i], 'k':k, 'muls':multiples, 's':i*w, 'e':i*w+w});
+	    
+		worker[i].postMessage({'res':res[i], 'k':k, 's':i*w, 'e':i*w+w, 'r':sjcl.bn.prototype.radix},[res[i]]);
+	  }
+	}
     return out;
   },
-
+*/
   /**
    * Multiply this point by k, added to affine2*k2, and return the answer in Jacobian coordinates.
    * @param {bigInt} k The coefficient to multiply this by.
@@ -3965,6 +4073,15 @@ sjcl.ecc.curve = function(Field, r, a, b, x, y) {
   this.a = new Field(a);
   this.b = new Field(b);
   this.G = new sjcl.ecc.point(this, new Field(x), new Field(y));
+  /* maybe I can precompute something here */
+  var m = this.mG = [new sjcl.ecc.point(this), this.G];
+  var s = new sjcl.bn(2).power((this.r.bitLength()+3)>>2);
+  m[2] = m[1].mult(s);
+  m[4] = m[2].mult(s);
+  m[8] = m[4].mult(s);
+  
+  for (var i=3; i<16; i++)
+    m[i] = m[i&1].toJac().add(m[i&2]).add(m[i&4]).add(m[i&8]).toAffine();
 };
 
 sjcl.ecc.curve.prototype.fromBits = function (bits) {
@@ -4042,8 +4159,8 @@ sjcl.ecc.curves = {
     "0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
     "0x483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8"),
 
-  sm2: new sjcl.ecc.curve(
-    sjcl.bn.prime.p256s,/* sm2 */
+  sm2: new sjcl.ecc.curve(/* sm2 */
+    sjcl.bn.prime.p256s,
     "0xfffffffeffffffffffffffffffffffff7203df6b21c6052b53bbf40939d54123",
 	"0xfffffffeffffffffffffffffffffffffffffffff00000000fffffffffffffffc",
 	"0x28e9fa9e9d9f5e344d5a9e4bcf6509a7f39789f515ab8f92ddbcbd414d940e93",
@@ -4189,9 +4306,10 @@ sjcl.ecc.basicKey.generateKeys = function(cn) {
         }
       }
 	}
-	sec = sec || sjcl.bn.random(curve.r, paranoia);
-
-    var pub = curve.G.mult(sec);
+	//sec = sec || sjcl.bn.random(curve.r, paranoia);
+    sec = new sjcl.bn('0xffffff',16);//wr
+    //var pub = curve.G.mult(sec);//multG
+    var pub = curve.G.multG(sec);
     return { pub: new sjcl.ecc[cn].publicKey(curve, pub),
              sec: new sjcl.ecc[cn].secretKey(curve, sec) };
   };
@@ -4346,7 +4464,8 @@ sjcl.ecc.ecdsa.secretKey.prototype = {
     var R  = this._curve.r,
         l  = R.bitLength(),
         k  = fixedKForTesting || sjcl.bn.random(R.sub(1), paranoia).add(1),
-        r  = this._curve.G.mult(k).x.mod(R),
+        //r  = this._curve.G.mult(k).x.mod(R),
+        r  = this._curve.G.multG(k).x.mod(R),
         ss = sjcl.bn.fromBits(hash).add(r.mul(this._exponent)),
         s  = fakeLegacyVersion ? ss.inverseMod(R).mul(k).mod(R)
              : ss.mul(k.inverseMod(R)).mod(R);
@@ -4390,6 +4509,7 @@ sjcl.ecc.sm2 = {
   //generateKeys: sjcl.ecc.basicKey.generateKeys("sm2"),
   generateKeys: function () {
 	var key = sjcl.ecc.basicKey.generateKeys("sm2")();
+	/* set pubkey, for signing */
 	Object.assign(key.sec, {'_pk':key.pub._point});
 	return key;
   },
@@ -4420,7 +4540,7 @@ sjcl.ecc.sm2 = {
 	//dumpb(bytes.fromBits(sjcl.hash.sm3.hash(bytes.toBits(za))), "ZA");
 	return bytes.fromBits(hash(bytes.toBits(za)));
     /* return hash("1234567812345678"); */  
-},
+  },
   
   /**
    * @param {bitArray} za
@@ -4448,15 +4568,15 @@ sjcl.ecc.sm2 = {
   }
 };
 
-/** ecdsa publicKey.
+/** sm2 publicKey.
  * @constructor
- * @augments sjcl.ecc.basicKey.publicKey
+ * @augments sjcl.sm2.basicKey.publicKey
  */
 sjcl.ecc.sm2.publicKey = function (curve, point) {
   sjcl.ecc.basicKey.publicKey.apply(this, arguments);
 };
 
-/** specific functions for ecdsa publicKey. */
+/** specific functions for sm2 publicKey. */
 sjcl.ecc.sm2.publicKey.prototype = {
   
   /** SM2 verify function
@@ -4555,7 +4675,8 @@ sjcl.ecc.sm2.secretKey.prototype = {
   sign: function(msg, ida, hash=sjcl.hash.sm3.hash) {
 	if (typeof msg === 'string')
 	  msg  = sjcl.codec.bytes.fromBits(sjcl.codec.utf8String.toBits(msg));
-	//var pk = this._curve.G.mult(this._exponent);
+	//if (!this._pk) this._pk = this._curve.G.mult(this._exponent);
+	if (!this._pk) this._pk = this._curve.G.multG(this._exponent);
 	var za = sjcl.ecc.sm2.HM(this._curve, this._pk.x, this._pk.y, ida, hash);
     if (sjcl.bitArray.bitLength(za) > this._curveBitLength) {
       za = sjcl.bitArray.clamp(za, this._curveBitLength);
@@ -4565,7 +4686,8 @@ sjcl.ecc.sm2.secretKey.prototype = {
 		
 	do {
 	  k  = sjcl.bn.random(n.sub(1)).add(1);
-	  x  = this._curve.G.mult(k).x.mod(n);
+	  //x  = this._curve.G.mult(k).x.mod(n);
+	  x  = this._curve.G.multG(k).x.mod(n);
 	  r  = sjcl.bn.fromBits(e).add(x).mod(n);
 	  k  = k.add(r).mod(n);
 	} while(r.equals(0) || k.equals(0));

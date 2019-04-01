@@ -9,11 +9,42 @@ function dump (a, base=16){
   console.log(str);
 }
 
+var sm2 = sjcl.ecc.curves['sm2'];
 
 var key = sjcl.ecc.sm2.generateKeys();
 
 console.log("pk: "+key.pub.serialize().point);
 console.log("sk: "+key.sec.serialize().exponent);
+var sk = new sjcl.bn(key.sec.serialize().exponent, 16);
+var pk = sm2.G.mult(sk);
+console.log('pk\': '+pk.x.toString(16)+' '+pk.y.toString(16));
+
+/*
+var s = new sjcl.bn(2, 16).power(64);
+var p = sm2.G;
+var base = [p];
+
+console.log(p.x.toString(16)+' '+p.y.toString(16));
+console.log('m[1]:'+sm2.mG[1].x.toString(16)+' '+sm2.mG[1].y.toString());
+for (var i=1; i<4; i++) {
+  p = p.mult(s);
+  base.push(p);
+  console.log('m['+(1<<i)+']:'+sm2.mG[1<<i].x.toString(16)+' '+sm2.mG[1<<i].y.toString());
+  console.log(p.x.toString(16)+' '+p.y.toString(16));
+}
+
+console.log("Precomputing .....");
+var zero = new sjcl.ecc.point(sm2);
+var m = [zero, base[0]];
+    m[2] = base[1];
+    m[4] = base[2];
+    m[8] = base[3];
+for (var i=1; i<16; i++) {
+  m[i] = m[i&1].toJac().add(m[i&2]).add(m[i&4]).add(m[i&8]).toAffine();
+  console.log(m[i].x.toString(16)+' '+m[i].y.toString(16));
+  console.log(sm2.mG[i].x.toString(16)+' '+sm2.mG[i].y.toString(16));
+}
+
 
 /*
 function KDF(za, klen, hash=sjcl.hash.sm3.hash, v=256)
@@ -48,6 +79,7 @@ var key = {
   sec: new sjcl.ecc['sm2'].secretKey(curve, new sjcl.bn("89B6F3E3000590059FAB428BC6A090126CB86C6E2A07467D47E37D3BA3155F74"))
 }
 */
+/*
 var sig = key.sec.sign("1234");
 dump(sig);
 var v = key.pub.verify("1234", sig);
@@ -59,5 +91,5 @@ dump(ct);
 var pt = key.sec.decrypt(ct);
 console.log("Plaintext : ");
 dump(pt);
-
+*/
 </script>
