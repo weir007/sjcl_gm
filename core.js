@@ -3892,11 +3892,11 @@ sjcl.ecc.pointJac.prototype = {
     }
 	while (k.length < this.curve.r.limbs.length) k.push(0);
 	var i, j, t, r = sjcl.bn.prototype.radix, out = new sjcl.ecc.point(this.curve).toJac();
-	for (i=(this.curve.r.bitLength()+3)>>2; i>0; i--) {
-	  t  = (k[Math.floor(i/r)] >> (i%r-1)) & 1;
-	  t += (k[Math.floor((i+64)/r)]  >> ((i+64)%r-2))  & 2;
-	  t += (k[Math.floor((i+128)/r)] >> ((i+128)%r-3)) & 4;
-	  t += (k[Math.floor((i+192)/r)] >> ((i+192)%r-4)) & 8;
+	for (i=((this.curve.r.bitLength()+3)>>2)-1; i>=0; i--) {
+	  t  = (k[Math.floor(i/r)] >> (i%r)) & 1;
+	  t += ((k[Math.floor((i+64)/r)]  >> ((i+64)%r))  & 1) << 1;
+	  t += ((k[Math.floor((i+128)/r)] >> ((i+128)%r)) & 1) << 2;
+	  t += ((k[Math.floor((i+192)/r)] >> ((i+192)%r)) & 1) << 3;
 	  out = out.doubl().add(this.curve.mG[t]);
     }
 	return out;
@@ -4306,8 +4306,7 @@ sjcl.ecc.basicKey.generateKeys = function(cn) {
         }
       }
 	}
-	//sec = sec || sjcl.bn.random(curve.r, paranoia);
-    sec = new sjcl.bn('0xffffff',16);//wr
+	sec = sec || sjcl.bn.random(curve.r, paranoia);
     //var pub = curve.G.mult(sec);//multG
     var pub = curve.G.multG(sec);
     return { pub: new sjcl.ecc[cn].publicKey(curve, pub),

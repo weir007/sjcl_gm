@@ -17,7 +17,7 @@ console.log("pk: "+key.pub.serialize().point);
 console.log("sk: "+key.sec.serialize().exponent);
 var sk = new sjcl.bn(key.sec.serialize().exponent, 16);
 var pk = sm2.G.mult(sk);
-console.log('pk\': '+pk.x.toString(16)+' '+pk.y.toString(16));
+console.log('pk\':'+pk.x.toString(16)+' '+pk.y.toString(16));
 
 /*
 var s = new sjcl.bn(2, 16).power(64);
@@ -79,7 +79,7 @@ var key = {
   sec: new sjcl.ecc['sm2'].secretKey(curve, new sjcl.bn("89B6F3E3000590059FAB428BC6A090126CB86C6E2A07467D47E37D3BA3155F74"))
 }
 */
-/*
+
 var sig = key.sec.sign("1234");
 dump(sig);
 var v = key.pub.verify("1234", sig);
@@ -91,5 +91,5 @@ dump(ct);
 var pt = key.sec.decrypt(ct);
 console.log("Plaintext : ");
 dump(pt);
-*/
+
 </script>
