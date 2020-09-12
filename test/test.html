@@ -1,8 +1,12 @@
+<!DOCTYPE html>
+<html>
+<head>
 <script language="javascript" src="../core.js"></script>
 <script>
 
 /* dump a bitArray */
-function dump(a, base=16){
+function dump(a, base){
+  base = base || 16;
   var str = '';
   for (var i=0; i<a.length; i++)
     str = str.concat((a[i]<0 ? a[i]+0x100000000 : a[i]).toString(16)+' ');
@@ -30,6 +34,7 @@ console.log("sk: "+key.sec.serialize().exponent);
 var sk = new sjcl.bn(key.sec.serialize().exponent, 16);
 var pk = sm2.G.mult(sk);
 console.log('pk.x: '+pk.x.toString(16)+'\npk.y: '+pk.y.toString(16));
+
 
 /*
 var s = new sjcl.bn(2, 16).power(64);
@@ -91,6 +96,8 @@ var key = {
   sec: new sjcl.ecc['sm2'].secretKey(curve, new sjcl.bn("89B6F3E3000590059FAB428BC6A090126CB86C6E2A07467D47E37D3BA3155F74"))
 }
 */
+
+
 console.log("************ Sign *************");
 var msg = "1234";
 console.log("Message : " + msg);
@@ -124,8 +131,8 @@ puts('sm3', hash);
 
 console.log("****************** SM4 *******************");
 
-var pt = sjcl.codec.bytes.toBits([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]);
-var key = sjcl.codec.bytes.toBits([15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0]);
+var pt = sjcl.codec.bytes.toBits([0x01,0x23,0x45,0x67,0x89,0xab,0xcd,0xef,0xfe,0xdc,0xba,0x98,0x76,0x54,0x32,0x10]);
+var key = sjcl.codec.bytes.toBits([0x01,0x23,0x45,0x67,0x89,0xab,0xcd,0xef,0xfe,0xdc,0xba,0x98,0x76,0x54,0x32,0x10]);
 
 sm4 = new sjcl.cipher.sm4(key);
 ct = sm4.encrypt(pt, key);
@@ -136,6 +143,8 @@ pt = sm4.decrypt(ct, key);
 
 console.log("Plaintext : ");
 dump(pt);
-
-
 </script>
+
+</head>
+<body>
+</body>

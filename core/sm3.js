@@ -147,32 +147,23 @@ sjcl.hash.sm3.prototype = {
   var h = this._h,
   W = [],
   M = [];// W'
-  for (let i=0; i<16; i++)
+  for (var i=0; i<16; i++)
 	  W[i] = w[i];
   
-  for (let j = 16; j < 68; j += 1) {
+  for (var j = 16; j < 68; j += 1) {
     W[j] = this._P1(W[j - 16] ^ W[j - 9] ^ this._rotl(W[j - 3], 15)) ^ this._rotl(W[j - 13], 7) ^ W[j - 6];
   }
 
   // W′[j] = W[j] xor W[j+4]
-  for (let j = 0; j < 64; j += 1) {
+  for (var j = 0; j < 64; j += 1) {
     M.push(W[j] ^ W[j + 4]);
   }
 
-  let A = h[0];
-  let B = h[1];
-  let C = h[2];
-  let D = h[3];
-  let E = h[4];
-  let F = h[5];
-  let G = h[6];
-  let H = h[7];
+  var A = h[0], B = h[1], C = h[2], D = h[3], E = h[4], F = h[5], G = h[6], H = h[7];
  
-  let SS1;
-  let SS2;
-  let TT1;
-  let TT2;
-  for (let j = 0; j < 64; j += 1) {
+  var SS1, SS2, TT1, TT2;
+ 
+  for (var j = 0; j < 64; j += 1) {
 	SS2 = this._rotl(A, 12);
 	SS1 = this._rotl((SS2 + E + this._rotl(this._T(j), j & 0x1f)) & 0xffffffff, 7);
 	SS2 ^= SS1;

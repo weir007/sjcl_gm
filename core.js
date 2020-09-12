@@ -2758,32 +2758,23 @@ sjcl.hash.sm3.prototype = {
   var h = this._h,
   W = [],
   M = [];// W'
-  for (let i=0; i<16; i++)
+  for (var i=0; i<16; i++)
 	  W[i] = w[i];
   
-  for (let j = 16; j < 68; j += 1) {
+  for (var j = 16; j < 68; j += 1) {
     W[j] = this._P1(W[j - 16] ^ W[j - 9] ^ this._rotl(W[j - 3], 15)) ^ this._rotl(W[j - 13], 7) ^ W[j - 6];
   }
 
   // W′[j] = W[j] xor W[j+4]
-  for (let j = 0; j < 64; j += 1) {
+  for (var j = 0; j < 64; j += 1) {
     M.push(W[j] ^ W[j + 4]);
   }
 
-  let A = h[0];
-  let B = h[1];
-  let C = h[2];
-  let D = h[3];
-  let E = h[4];
-  let F = h[5];
-  let G = h[6];
-  let H = h[7];
+  var A = h[0], B = h[1], C = h[2], D = h[3], E = h[4], F = h[5], G = h[6], H = h[7];
  
-  let SS1;
-  let SS2;
-  let TT1;
-  let TT2;
-  for (let j = 0; j < 64; j += 1) {
+  var SS1, SS2, TT1, TT2;
+ 
+  for (var j = 0; j < 64; j += 1) {
 	SS2 = this._rotl(A, 12);
 	SS1 = this._rotl((SS2 + E + this._rotl(this._T(j), j & 0x1f)) & 0xffffffff, 7);
 	SS2 ^= SS1;
@@ -2834,6 +2825,12 @@ sjcl.cipher.sm4 = function (key) {
 	rotl = this._rotl,
 	K,
     keyLen = key.length;
+	
+	/*T-Table
+	  if (!this._tbox[0][0]) {
+	    this._precompute();
+	  }
+	 */
   
   if (keyLen !== 4) {
     throw new sjcl.exception.invalid("invalid SM4 key size");
@@ -2929,6 +2926,24 @@ sjcl.cipher.sm4.prototype = {
 	return a ^ this._rotl(a, 2) ^ this._rotl(a, 10) ^ this._rotl(a, 18) ^ this._rotl(a, 24);
   },
    
+   /* T-Table
+	  _tbox: [[],[],[],[]],
+  
+	  _precompute: function () {
+	 	 var x = 0, y, t;
+	 	 for (x=0; x<256; x++)
+	 	 {
+	 		 y = this._sbox[x];
+	 		 for (var i=0; i<4; i++)
+			 {
+				 t = y << 8*i;
+	 			 this._tbox[i][x] = this._L(t);
+			 }
+	 	 }
+  },
+	
+   */
+   
 //////////////////////////////////////////////////////////////////////////////////////
   /**
    * Encryption and decryption core.
@@ -2946,6 +2961,10 @@ sjcl.cipher.sm4.prototype = {
 	
 	for (i = 0; i < 32; i++) {
 	  X[i+4] = X[i] ^ this._L(X[i+1] ^ X[i+2] ^ X[i+3] ^ key[i]);
+	  /* T-Table
+	    var x = X[i+1] ^ X[i+2] ^ X[i+3] ^ key[i];
+	    X[i+4] = X[i] ^ this._tbox[0][x & 0xff] ^ this._tbox[1][(x >>> 8) & 0xff] ^ this._tbox[2][(x >>> 16) & 0xff] ^ this._tbox[3][(x >>> 24) & 0xff];
+	   */
 	};
 	out = [X[35], X[34], X[33], X[32]];
 	return out;
@@ -4509,7 +4528,8 @@ sjcl.ecc.sm2 = {
   generateKeys: function () {
 	var key = sjcl.ecc.basicKey.generateKeys("sm2")();
 	/* set pubkey, for signing */
-	Object.assign(key.sec, {'_pk':key.pub._point});
+	//Object.assign(key.sec, {'_pk':key.pub._point});
+	key.sec._pk = key.pub._point;
 	return key;
   },
   /**
@@ -4520,8 +4540,11 @@ sjcl.ecc.sm2 = {
    * @param {string | bitArray} ida UserID
    * @param {sjcl.hash.xxx.hash} hash hash function   
    */
-  HM : function getMsgHash(curve, px, py, ida="1234567812345678", hash=sjcl.hash.sm3.hash) {
-    var bytes = sjcl.codec.bytes,
+  HM : function (curve, px, py, ida, hash) {
+    ida = ida || "1234567812345678";
+	hash = hash || sjcl.hash.sm3.hash;
+	
+	var bytes = sjcl.codec.bytes,
 	  string = sjcl.codec.utf8String,
 	  hex = sjcl.codec.hex;
 	if (typeof ida === 'string')
@@ -4547,8 +4570,10 @@ sjcl.ecc.sm2 = {
    * @param {sjcl.hash.xxx.hash} hash function
    * @param {int} bitLength of the output of hash function
    */
-  KDF : function(za, klen, hash=sjcl.hash.sm3.hash, v=256)
+  KDF : function(za, klen, hash, v)
   {
+	v = v || 256;
+
 	var bytes = sjcl.codec.bytes,
 	    ct = 1, 
 	    blocks = Math.floor((klen+v-1)/v), 
@@ -4584,7 +4609,9 @@ sjcl.ecc.sm2.publicKey.prototype = {
    * @param {string | bitArray} ida UserID
    * @param {sjcl.hash.xxx.hash} hash hash function 
    */
-  verify: function(msg, rs, ida="1234567812345678", hash=sjcl.hash.sm3.hash) {
+  verify: function(msg, rs, ida, hash) {
+	ida = ida || "1234567812345678";
+	hash = hash || sjcl.hash.sm3.hash;
 	var bytes = sjcl.codec.bytes,
 	string = sjcl.codec.utf8String;
 	/* Check whether r and s are in range [1, n-1] */
@@ -4622,10 +4649,14 @@ sjcl.ecc.sm2.publicKey.prototype = {
    * @param {sjcl.hash.xxx.hash} hash function to be used
    * @param {int} v bitLength of the output of hash function
    */
-  encrypt: function(msg, hash=sjcl.hash.sm3.hash, v=256) {
+  encrypt: function(msg, hash, v) {
+	hash = hash || sjcl.hash.sm3.hash;
+	v = v || 256;
+	
 	var hex = sjcl.codec.hex,
 	    bytes = sjcl.codec.bytes,
 		string = sjcl.codec.utf8String;
+	
 	if (typeof msg === "string") {
 		msg = string.toBits(msg)
 	}
@@ -4660,7 +4691,8 @@ sjcl.ecc.sm2.publicKey.prototype = {
 sjcl.ecc.sm2.secretKey = function (curve, exponent) {
   sjcl.ecc.basicKey.secretKey.apply(this, arguments);
   /* weir007: precompute (1+d)^-1 */
-  Object.assign(this, {'_ivda1':this._exponent.add(1).inverseMod(this._curve.r)});
+  //Object.assign(this, {'_ivda1':this._exponent.add(1).inverseMod(this._curve.r)});
+  this._ivda1 = this._exponent.add(1).inverseMod(this._curve.r);
 };
 
 /** specific functions for ecdsa secretKey. */
@@ -4671,7 +4703,10 @@ sjcl.ecc.sm2.secretKey.prototype = {
    * @param {string | bitArray} ida UserID
    * @param {sjcl.hash.xxx.hash} hash hash function 
    */
-  sign: function(msg, ida, hash=sjcl.hash.sm3.hash) {
+  sign: function(msg, ida, hash) {
+	ida = ida || "1234567812345678";
+	hash = hash || sjcl.hash.sm3.hash;
+	
 	if (typeof msg === 'string')
 	  msg  = sjcl.codec.bytes.fromBits(sjcl.codec.utf8String.toBits(msg));
 	//if (!this._pk) this._pk = this._curve.G.mult(this._exponent);
@@ -4701,7 +4736,10 @@ sjcl.ecc.sm2.secretKey.prototype = {
    * @param {sjcl.hash.xxx.hash} hash hash function 
    * @param {int} v bitLength of the output of hash function
    */
-  decrypt: function(cipher, hash=sjcl.hash.sm3.hash, v=256) {
+  decrypt: function(cipher, hash, v) {
+	hash = hash || sjcl.hash.sm3.hash;
+	v = v || 256;
+
 	var klen = sjcl.bitArray.bitLength(cipher) - 768,
 	    c1 = sjcl.bitArray.clamp(cipher, 512),
 		c3 = sjcl.bitArray.bitSlice(cipher, 512, 768),
@@ -4721,7 +4759,6 @@ sjcl.ecc.sm2.secretKey.prototype = {
 	}
 	if (!nz) {
 	  throw new Error("KDF: encryption key is zero!");
-	  return null;
 	}
 	
 	h = hash(sjcl.bitArray.concat(za.x.toBits(), sjcl.bitArray.concat(m, za.y.toBits())));
@@ -4731,7 +4768,6 @@ sjcl.ecc.sm2.secretKey.prototype = {
 	  nz |= h[i] ^ c3[i];
     if (nz) {
 	  throw new Error("Decryption failed!");
-	  return null;
 	}
 	return m;
   },

@@ -9,7 +9,7 @@
  * @constructor
  * @param {Array} key The key as an array of 4, 6 or 8 words.
  */
-sjcl.cipher.sm4 = function (key) {
+sjcl.cipher.sm4_t = function (key) {
   
   var i, j, tmp,
     encKey, decKey,
@@ -19,12 +19,10 @@ sjcl.cipher.sm4 = function (key) {
 	rotl = this._rotl,
 	K,
     keyLen = key.length;
-	
-	/*T-Table
-	  if (!this._tbox[0][0]) {
-	    this._precompute();
-	  }
-	 */
+  
+  if (!this._tbox[0][0]) {
+	  this._precompute();
+  }
   
   if (keyLen !== 4) {
     throw new sjcl.exception.invalid("invalid SM4 key size");
@@ -43,7 +41,7 @@ sjcl.cipher.sm4 = function (key) {
 
 };
 
-sjcl.cipher.sm4.prototype = {
+sjcl.cipher.sm4_t.prototype = {
   // public
   /* Something like this might appear here eventually
   name: "SM4",
@@ -64,7 +62,7 @@ sjcl.cipher.sm4.prototype = {
    * @return {Array} The plaintext.
    */
   decrypt:function (data) { return this._crypt(data,1); },
-
+  
   _sbox : [
 	0xd6,0x90,0xe9,0xfe,0xcc,0xe1,0x3d,0xb7,0x16,0xb6,0x14,0xc2,0x28,0xfb,0x2c,0x05,
 	0x2b,0x67,0x9a,0x76,0x2a,0xbe,0x04,0xc3,0xaa,0x44,0x13,0x26,0x49,0x86,0x06,0x99,
@@ -102,41 +100,32 @@ sjcl.cipher.sm4.prototype = {
 	return (a << n) | (a >>> (32 - n));
   },
   
-  /**
-   * S(B) = (sbox[B0]<<24) | (sbox[B1]<<16) | (sbox[B2]<<8) | sbox[B3]
-   * Encryption and decryption core.
-   * @param {word} input one word to look up.
-   * @return {word} the result.
-   * @private
-   */
-  _S: function (a) {
-	/* Big-Endian */
-	return (this._sbox[a>>>24] << 24) | (this._sbox[(a>>>16) & 0xff] << 16) | (this._sbox[(a>>>8) & 0xff] << 8) | (this._sbox[a & 0xff] << 0);
+  _rotr: function(a, n) {
+	return (a >>> n) | (a << (32 - n));
   },
-  
-  /* L(B) = B ^ (B<<<2) ^ (B<<<10) ^ (B<<<18) ^ (B<<<24) */
   _L: function (a) {
-	a = this._S(a);
 	return a ^ this._rotl(a, 2) ^ this._rotl(a, 10) ^ this._rotl(a, 18) ^ this._rotl(a, 24);
   },
-   
-   /* T-Table
-	  _tbox: [[],[],[],[]],
+ 
+  _tbox: [[],[],[],[]],
   
-	  _precompute: function () {
-	 	 var x = 0, y, t;
-	 	 for (x=0; x<256; x++)
-	 	 {
-	 		 y = this._sbox[x];
-	 		 for (var i=0; i<4; i++)
-			 {
-				 t = y << 8*i;
-	 			 this._tbox[i][x] = this._L(t);
-			 }
-	 	 }
+  _precompute: function () {
+	  var x = 0, y, t;
+	  for (x=0; x<256; x++)
+	  {
+		  y = this._sbox[x];
+		  /*t = (y ^ (y<<2)) << 24;
+		  t |= (y ^ (y>>>6)) << 18;
+		  t |= this._rotl(y, 2) << 8;
+		  t |= this._rotl(y, 2);*/
+		  for (var i=0; i<4; i++) {
+			t = y << 8*i;
+			this._tbox[i][x] = this._L(t);//能否省一省？
+			//console.log("T["+i+"]["+x+"] = "+this._tbox[i][x].toString(16));
+			//this._tbox[i][x] = this._rotr(t, i<<3);//能否省一省？
+		  }
+	  }
   },
-	
-   */
    
 //////////////////////////////////////////////////////////////////////////////////////
   /**
@@ -154,11 +143,8 @@ sjcl.cipher.sm4.prototype = {
 	var key = this._key[dir], X = input, out = [0, 0, 0, 0], i;
 	
 	for (i = 0; i < 32; i++) {
-	  X[i+4] = X[i] ^ this._L(X[i+1] ^ X[i+2] ^ X[i+3] ^ key[i]);
-	  /* T-Table
-	    var x = X[i+1] ^ X[i+2] ^ X[i+3] ^ key[i];
-	    X[i+4] = X[i] ^ this._tbox[0][x & 0xff] ^ this._tbox[1][(x >>> 8) & 0xff] ^ this._tbox[2][(x >>> 16) & 0xff] ^ this._tbox[3][(x >>> 24) & 0xff];
-	   */
+	  var x = X[i+1] ^ X[i+2] ^ X[i+3] ^ key[i];
+	  X[i+4] = X[i] ^ this._tbox[0][x & 0xff] ^ this._tbox[1][(x >>> 8) & 0xff] ^ this._tbox[2][(x >>> 16) & 0xff] ^ this._tbox[3][(x >>> 24) & 0xff];
 	};
 	out = [X[35], X[34], X[33], X[32]];
 	return out;

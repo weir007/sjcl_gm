@@ -813,7 +813,8 @@ sjcl.ecc.sm2 = {
   generateKeys: function () {
 	var key = sjcl.ecc.basicKey.generateKeys("sm2")();
 	/* set pubkey, for signing */
-	Object.assign(key.sec, {'_pk':key.pub._point});
+	//Object.assign(key.sec, {'_pk':key.pub._point});
+	key.sec._pk = key.pub._point;
 	return key;
   },
   /**
@@ -824,8 +825,11 @@ sjcl.ecc.sm2 = {
    * @param {string | bitArray} ida UserID
    * @param {sjcl.hash.xxx.hash} hash hash function   
    */
-  HM : function getMsgHash(curve, px, py, ida="1234567812345678", hash=sjcl.hash.sm3.hash) {
-    var bytes = sjcl.codec.bytes,
+  HM : function (curve, px, py, ida, hash) {
+    ida = ida || "1234567812345678";
+	hash = hash || sjcl.hash.sm3.hash;
+	
+	var bytes = sjcl.codec.bytes,
 	  string = sjcl.codec.utf8String,
 	  hex = sjcl.codec.hex;
 	if (typeof ida === 'string')
@@ -851,8 +855,10 @@ sjcl.ecc.sm2 = {
    * @param {sjcl.hash.xxx.hash} hash function
    * @param {int} bitLength of the output of hash function
    */
-  KDF : function(za, klen, hash=sjcl.hash.sm3.hash, v=256)
+  KDF : function(za, klen, hash, v)
   {
+	v = v || 256;
+
 	var bytes = sjcl.codec.bytes,
 	    ct = 1, 
 	    blocks = Math.floor((klen+v-1)/v), 
@@ -888,7 +894,9 @@ sjcl.ecc.sm2.publicKey.prototype = {
    * @param {string | bitArray} ida UserID
    * @param {sjcl.hash.xxx.hash} hash hash function 
    */
-  verify: function(msg, rs, ida="1234567812345678", hash=sjcl.hash.sm3.hash) {
+  verify: function(msg, rs, ida, hash) {
+	ida = ida || "1234567812345678";
+	hash = hash || sjcl.hash.sm3.hash;
 	var bytes = sjcl.codec.bytes,
 	string = sjcl.codec.utf8String;
 	/* Check whether r and s are in range [1, n-1] */
@@ -926,10 +934,14 @@ sjcl.ecc.sm2.publicKey.prototype = {
    * @param {sjcl.hash.xxx.hash} hash function to be used
    * @param {int} v bitLength of the output of hash function
    */
-  encrypt: function(msg, hash=sjcl.hash.sm3.hash, v=256) {
+  encrypt: function(msg, hash, v) {
+	hash = hash || sjcl.hash.sm3.hash;
+	v = v || 256;
+	
 	var hex = sjcl.codec.hex,
 	    bytes = sjcl.codec.bytes,
 		string = sjcl.codec.utf8String;
+	
 	if (typeof msg === "string") {
 		msg = string.toBits(msg)
 	}
@@ -964,7 +976,8 @@ sjcl.ecc.sm2.publicKey.prototype = {
 sjcl.ecc.sm2.secretKey = function (curve, exponent) {
   sjcl.ecc.basicKey.secretKey.apply(this, arguments);
   /* weir007: precompute (1+d)^-1 */
-  Object.assign(this, {'_ivda1':this._exponent.add(1).inverseMod(this._curve.r)});
+  //Object.assign(this, {'_ivda1':this._exponent.add(1).inverseMod(this._curve.r)});
+  this._ivda1 = this._exponent.add(1).inverseMod(this._curve.r);
 };
 
 /** specific functions for ecdsa secretKey. */
@@ -975,7 +988,10 @@ sjcl.ecc.sm2.secretKey.prototype = {
    * @param {string | bitArray} ida UserID
    * @param {sjcl.hash.xxx.hash} hash hash function 
    */
-  sign: function(msg, ida, hash=sjcl.hash.sm3.hash) {
+  sign: function(msg, ida, hash) {
+	ida = ida || "1234567812345678";
+	hash = hash || sjcl.hash.sm3.hash;
+	
 	if (typeof msg === 'string')
 	  msg  = sjcl.codec.bytes.fromBits(sjcl.codec.utf8String.toBits(msg));
 	//if (!this._pk) this._pk = this._curve.G.mult(this._exponent);
@@ -1005,7 +1021,10 @@ sjcl.ecc.sm2.secretKey.prototype = {
    * @param {sjcl.hash.xxx.hash} hash hash function 
    * @param {int} v bitLength of the output of hash function
    */
-  decrypt: function(cipher, hash=sjcl.hash.sm3.hash, v=256) {
+  decrypt: function(cipher, hash, v) {
+	hash = hash || sjcl.hash.sm3.hash;
+	v = v || 256;
+
 	var klen = sjcl.bitArray.bitLength(cipher) - 768,
 	    c1 = sjcl.bitArray.clamp(cipher, 512),
 		c3 = sjcl.bitArray.bitSlice(cipher, 512, 768),
@@ -1025,7 +1044,6 @@ sjcl.ecc.sm2.secretKey.prototype = {
 	}
 	if (!nz) {
 	  throw new Error("KDF: encryption key is zero!");
-	  return null;
 	}
 	
 	h = hash(sjcl.bitArray.concat(za.x.toBits(), sjcl.bitArray.concat(m, za.y.toBits())));
@@ -1035,7 +1053,6 @@ sjcl.ecc.sm2.secretKey.prototype = {
 	  nz |= h[i] ^ c3[i];
     if (nz) {
 	  throw new Error("Decryption failed!");
-	  return null;
 	}
 	return m;
   },
