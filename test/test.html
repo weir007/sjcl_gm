@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<script language="javascript" src="../core.js"></script>
+<script language="javascript" src="../sjcl.js"></script>
 <script>
 
 /* dump a bitArray */
@@ -31,72 +31,6 @@ var key = sjcl.ecc.sm2.generateKeys();
 
 console.log("pk: "+key.pub.serialize().point);
 console.log("sk: "+key.sec.serialize().exponent);
-var sk = new sjcl.bn(key.sec.serialize().exponent, 16);
-var pk = sm2.G.mult(sk);
-console.log('pk.x: '+pk.x.toString(16)+'\npk.y: '+pk.y.toString(16));
-
-
-/*
-var s = new sjcl.bn(2, 16).power(64);
-var p = sm2.G;
-var base = [p];
-
-console.log(p.x.toString(16)+' '+p.y.toString(16));
-console.log('m[1]:'+sm2.mG[1].x.toString(16)+' '+sm2.mG[1].y.toString());
-for (var i=1; i<4; i++) {
-  p = p.mult(s);
-  base.push(p);
-  console.log('m['+(1<<i)+']:'+sm2.mG[1<<i].x.toString(16)+' '+sm2.mG[1<<i].y.toString());
-  console.log(p.x.toString(16)+' '+p.y.toString(16));
-}
-
-console.log("Precomputing .....");
-var zero = new sjcl.ecc.point(sm2);
-var m = [zero, base[0]];
-    m[2] = base[1];
-    m[4] = base[2];
-    m[8] = base[3];
-for (var i=1; i<16; i++) {
-  m[i] = m[i&1].toJac().add(m[i&2]).add(m[i&4]).add(m[i&8]).toAffine();
-  console.log(m[i].x.toString(16)+' '+m[i].y.toString(16));
-  console.log(sm2.mG[i].x.toString(16)+' '+sm2.mG[i].y.toString(16));
-}
-
-
-/*
-function KDF(za, klen, hash=sjcl.hash.sm3.hash, v=256)
-{
-  var bytes = sjcl.codec.bytes,
-      ct = 1, 
-      blocks = Math.floor((klen+v-1)/v), 
-  	ha = [];
-  
-  if (klen >= 0xffffffff*v)
-  {
-  	throw exception("message is too long");
-  }
-  
-  for (var i=0; i<blocks; i++)
-  {
-  	ha = ha.concat(hash(sjcl.bitArray.concat(za, [ct++ & 0xffffffff])));
-  }
-  return sjcl.bitArray.clamp(ha, klen);
-}
-
-var za = sjcl.codec.hex.toBits( "57e7b63623fae5f08cda468e872a20afa03ded41bf1403770e040dc83af31a67991f2b01ebf9efd8881f0a0493000603");
-
-var t = KDF(za, 152);
-console.log("t = "+sjcl.codec.hex.fromBits(t));
-
-
-var curve = sjcl.ecc.curves["sm2"];
-
-var key = {
-  pub: new sjcl.ecc['sm2'].publicKey(curve, new sjcl.ecc.point(curve, new sjcl.bn("C0FAEA5EED918A1F60B63E61F3CEBCD60B64799E32F265C747D45978A1EAE4A4"), new sjcl.bn("9003950ED67DB2A82B92DC4E98235F841767E3B3B0DA2C3552DE47234DCEF04D"))),
-  sec: new sjcl.ecc['sm2'].secretKey(curve, new sjcl.bn("89B6F3E3000590059FAB428BC6A090126CB86C6E2A07467D47E37D3BA3155F74"))
-}
-*/
-
 
 console.log("************ Sign *************");
 var msg = "1234";
@@ -106,8 +40,8 @@ var sig = key.sec.sign(msg);
 console.log("Signature : ");
 dump(sig);
 
-var v = key.pub.verify(msg, sig);
-console.log("Signature verify : "+v);
+var vl = key.pub.verify(msg, sig);
+console.log("Signature verify : "+vl);
 
 console.log("************ Encryption *************");
 console.log("Plaintext : " + msg);

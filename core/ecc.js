@@ -781,7 +781,7 @@ sjcl.ecc.ecdsa.secretKey.prototype = {
 };
 
 
-/* test */
+/* test
 function dump(a, tag) {
   var str = tag+':';
   for (var i=0; i<a.length; i++)
@@ -795,7 +795,7 @@ function dumpb(a, tag) {
     str = str.concat((a[i]<0 ? a[i]+0x100 : a[i]).toString(16)+' ');
   console.log(str);
 }
-
+ */
 /**
  * SM2
  * Including Key Generation, Sign/Verify and Encryption/Decryption,
@@ -816,16 +816,18 @@ sjcl.ecc.sm2 = {
 	//Object.assign(key.sec, {'_pk':key.pub._point});
 	key.sec._pk = key.pub._point;
 	return key;
-  },
-  /**
-   * ZA = H(ENTLA || IDA || a || b || xG || yG || xA || yA)
-   * @param {ecc.curve} curve 
-   * @param {xcoordinate} px of public key
-   * @param {ycoordinate} py of public key
-   * @param {string | bitArray} ida UserID
-   * @param {sjcl.hash.xxx.hash} hash hash function   
-   */
-  HM : function (curve, px, py, ida, hash) {
+  }
+};
+
+/**
+ * ZA = H(ENTLA || IDA || a || b || xG || yG || xA || yA)
+ * @param {ecc.curve} curve 
+ * @param {xcoordinate} px of public key
+ * @param {ycoordinate} py of public key
+ * @param {string | bitArray} ida UserID
+ * @param {sjcl.hash.xxx.hash} hash hash function   
+ */
+sjcl.ecc.sm2.HM = function (curve, px, py, ida, hash) {
     ida = ida || "1234567812345678";
 	hash = hash || sjcl.hash.sm3.hash;
 	
@@ -847,16 +849,16 @@ sjcl.ecc.sm2 = {
 	//dumpb(bytes.fromBits(sjcl.hash.sm3.hash(bytes.toBits(za))), "ZA");
 	return bytes.fromBits(hash(bytes.toBits(za)));
     /* return hash("1234567812345678"); */  
-  },
+};
   
-  /**
-   * @param {bitArray} za
-   * @param {int} klen expected bitLength of output
-   * @param {sjcl.hash.xxx.hash} hash function
-   * @param {int} bitLength of the output of hash function
-   */
-  KDF : function(za, klen, hash, v)
-  {
+/**
+ * @param {bitArray} za
+ * @param {int} klen expected bitLength of output
+ * @param {sjcl.hash.xxx.hash} hash function
+ * @param {int} bitLength of the output of hash function
+ */
+sjcl.ecc.sm2.KDF = function(za, klen, hash, v)
+{
 	v = v || 256;
 
 	var bytes = sjcl.codec.bytes,
@@ -874,7 +876,6 @@ sjcl.ecc.sm2 = {
 		ha = ha.concat(hash(sjcl.bitArray.concat(za, [ct++ & 0xffffffff])));
 	}
 	return sjcl.bitArray.clamp(ha, klen);
-  }
 };
 
 /** sm2 publicKey.
